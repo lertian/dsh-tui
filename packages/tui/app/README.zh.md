@@ -19,13 +19,17 @@ dsh --profile tui                   # the explicit form
 - **流式会话记录** —— `assistant/chunk` 增量实时渲染，`assistant/message` 完成每个 step 的定稿。恢复会话时走同一个投影（`src/projection.ts`）重放持久化日志，历史始终完整（"模型可见即已落盘"）。
 - **通用工具卡片** —— 每对 `tool/call`/`tool/result` 渲染为截断预览卡片（名称、参数摘要、结果预览）。任何第三方插件贡献的工具都无需 TUI 侧适配即可显示。
 - **审批浮层** —— 插件以终端提示回答 `approval/request` waterfall：`y` 允许一次，`n` 拒绝，`a` 本会话内总是允许该工具（UI 侧记忆）。决定以 `approval/asked`/`approval/decided` 审计对写入会话日志。
-- **斜杠命令** —— 注册进共享的 `ctx.commands` 运行时：`/new`、`/resume`（打开可 fuzzy 过滤的会话选择器，或按 id／唯一短前缀恢复）、`/model`（打开模型选择器，或按 `<provider> <model>` 切换当前会话的模型，并保存为新会话的默认）、`/tools`、`/settings`、`/help`、`/quit`。插件贡献的命令自动出现在 `/help` 与 `/` 菜单。
+- **斜杠命令** —— 注册进共享的 `ctx.commands` 运行时：`/new`、`/resume`（打开可 fuzzy 过滤的会话选择器，或按 id／唯一短前缀恢复）、`/model`（打开模型选择器，或按 `<provider> <model>` 切换当前会话的模型，并保存为新会话的默认）、`/tools`、`/settings`、`/help`、`/clear`（清空视图，会话日志不动）、`/quit`。插件贡献的命令自动出现在 `/help` 与 `/` 菜单。
 - **技能** —— 来自 `dsh-skill` 注册表的用户可调用技能出现在同一个 `/` 菜单（`user-only ·` 标记标识 `disable-model-invocation` 技能）。提交某个用户可调用技能的 `/name` 会将其作为普通用户消息转发给模型，由 `dsh-tool-skill` 注入渲染后的技能正文；命令名始终优先于同名技能。技能名也会列在 `/help` 中。
 - **压缩状态** —— `compaction/start`/`summary`/`end` 生命周期渲染实时 `compacting…` spinner（含手动 `/compact`：它在 agent 空闲时运行，因此 spinner 不依赖开着的 turn）、落盘后一条 `compacted N history items (~M tokens)` 通知，失败尝试则渲染错误通知。`compaction/prune` 保持静默，与 Web 客户端对齐。
 - **输入历史** —— ↑/↓ 以 readline 风格回看已提交的行：连续重复行折叠，↓ 回到正在编辑的草稿。历史落盘到 `$DSH_HOME/profiles/tui/history`（最近 200 条），跨重启保留。
 - **思考模式** —— Shift+Tab 在当前模型公布的档位间循环切换推理强度（DeepSeek 为 off/high/max）。所选档位显示在状态栏。模型选择按会话独立：resume 时从该会话的日志恢复它自己上次使用的模型与档位，切换同时也会更新供新会话使用的 settings 默认。
 - **状态栏** —— 模型、思考档位、会话 id、累计 token 用量、运行状态（running / cancelling / compacting / idle）。
 - **按键** —— Enter 提交；Shift+Enter 或 Ctrl+J 换行；↑/↓ 回看历史；Shift+Tab 循环思考档位；输入 `/` 打开 fuzzy 斜杠命令与技能菜单（↑↓ 选择，Tab 补全，Enter 执行，Esc 关闭）；菜单与选择器关闭后，Esc 中断当前 turn；Ctrl+O 展开/收起最后一轮的工具结果与思考；Ctrl+C 清空输入或中断当前 turn——再次按下退出（先冲刷会话）。中断 turn 会立即停止 working 指示并清空输入框，显示 `cancelling…` 直到 agent 的合作式中止落定。审批问题打开期间输入框只读——`y`/`n`/`a`/`Esc` 归浮层所有。
+
+## 语义色板
+
+第三方插件贡献的命令/工具沿用同一套状态色约定：**选中 = 反色**、**进行中 = 黄**、**成功 = 绿**、**失败 = 红**、**信息 = 灰**、**审批/危险 = 黄**。工具卡、命令行、通知与选择列表都遵循它。
 
 ## 架构
 

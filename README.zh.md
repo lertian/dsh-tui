@@ -12,31 +12,79 @@ DeepSeek Harness 目前处于 _开发者预览_ 阶段，正在快速迭代。**
 
 ## 终端 UI（本 fork）
 
-本 fork 为 DeepSeek Harness 新增了交互式**终端 UI**，基于 [Ink](https://github.com/vadimdemedes/ink) 构建，交互风格对标 Claude Code。
+本 fork 为 DeepSeek Harness 新增了交互式**终端 UI**，基于 [Ink](https://github.com/vadimdemedes/ink) 构建，交互风格对标 Claude Code。它是默认表层：直接输入 `dsh` 即可启动。
 
-**定位。** TUI 是原生 harness 之上的一层薄表层：agent 循环、工具、审批、会话持久化、settings 与 credentials 全部来自未改动的 `dsh-base` 插件栈。它与 Web UI 及其他 profile 共享同一个 `~/.dsh`——一份配置、一份凭证、一份会话历史，两个表层通用。核心包零改动；TUI 由 [`packages/tui/app`](packages/tui/app/README.md)、一个 bundle patch 和已注册的 `tui` profile 组成。
+### 定位
 
-**能力。** 流式会话记录、通用工具调用卡片、审批浮层（`y` / `n` / `a`）、`/` fuzzy 命令菜单、`/resume` 与 `/model` 交互式选择器、参数补全（含 `/permission`），以及 `dsh -c` 继续当前目录最近一次会话。通过 `dsh plugin --profile tui add <package>` 安装的第三方 Cordis 插件会自动贡献其工具与斜杠命令。
+TUI 是原生 harness 之上的一层薄表层：agent 循环、工具、审批、会话持久化、settings 与 credentials 全部来自未改动的 `dsh-base` 插件栈。它与 Web UI 及其他 profile 共享同一个 `~/.dsh`——一份配置、一份凭证、一份会话历史，两个表层通用。核心包零改动；TUI 由 [`packages/tui/app`](packages/tui/app/README.zh.md)、一个 bundle patch 和已注册的 `tui` profile 组成。
 
-### 使用方式
+### 功能
+
+- **流式会话记录** —— `assistant/chunk` 增量实时渲染；恢复会话时重放持久化日志，历史始终完整。
+- **通用工具卡片** —— 每对 `tool/call` / `tool/result` 渲染为一张卡片（名称、参数摘要、结果预览）；任何第三方插件贡献的工具都无需 TUI 侧适配即可显示。
+- **审批浮层** —— 用 `y`（允许一次）/ `n`（拒绝）/ `a`（本会话总是允许）回答工具审批问题；问题打开期间输入框仍可编辑。
+- **斜杠命令菜单** —— 输入 `/` 打开 fuzzy 匹配菜单，列出所有已注册命令（内置与插件贡献的），支持 ↑↓ 选择、Tab 补全、Enter 执行。
+- **交互式选择器** —— `/resume` 打开可 fuzzy 过滤的会话选择器；`/model` 打开模型目录选择器；两者都支持参数补全（如 `/permission ` 列出预置项）。
+- **快捷继续** —— `dsh -c` 恢复当前目录最新会话，自动跳过日志不可读的会话。
+
+### 环境要求
+
+- **Node.js 24+**（仓库要求 `^22.19.0 || >=24`；brew 的 keg-only `node@24` 可用：`export PATH="/opt/homebrew/opt/node@24/bin:$PATH"`）。
+- **pnpm** —— 由 corepack 解析（`export COREPACK_ENABLE_DOWNLOAD_PROMPT=0` 跳过确认提示）。
+
+### 快速开始
 
 ```sh
 git clone https://github.com/lertian/dsh-tui.git
 cd dsh-tui
 pnpm install
-pnpm run build        # Node 24, pnpm via corepack
+pnpm run build
 node apps/cli/lib/bin.js
 ```
 
+日常使用建议加个别名（指向构建产物，与 `pnpm run build` 保持同步）：
+
 ```sh
-dsh                    # fresh session (tui is the default profile)
-dsh -c                 # continue the newest session in this directory
-dsh --resume <id>      # reopen a specific persisted session
-dsh --profile headless "run the tests"   # one-shot, non-interactive
-dsh web                # the Web UI, same ~/.dsh
+alias dsh='/opt/homebrew/opt/node@24/bin/node /path/to/dsh-tui/apps/cli/lib/bin.js'
 ```
 
-UI 内按键：Enter 提交；输入 `/` 打开命令菜单（↑↓ 选择，Tab 补全，Enter 执行）；`/resume` 与 `/model` 打开 fuzzy 选择器；Esc 关闭菜单与选择器；Ctrl+C 退出。完整功能列表与架构说明见 [TUI 包 README](packages/tui/app/README.md)。
+### 命令
+
+| 命令 | 作用 |
+|---|---|
+| `dsh` | 启动全新交互会话（tui 是默认 profile） |
+| `dsh -c` | 继续当前目录最新可读会话 |
+| `dsh --resume <id>` | 恢复指定持久化会话 |
+| `dsh --profile headless "task"` | 一次性非交互任务；打印结果后退出 |
+| `dsh web` | Web UI——同一个 `~/.dsh`、同一份会话 |
+| `dsh plugin --profile tui add <pkg>` | 向 TUI profile 安装第三方 Cordis 插件 |
+
+### UI 内按键
+
+| 按键 | 作用 |
+|---|---|
+| `Enter` | 提交输入 |
+| `Shift+Enter` / `Ctrl+J` | 换行 |
+| `/` | 打开 fuzzy 斜杠命令菜单（↑↓ 选择，Tab 补全，Enter 执行，Esc 关闭） |
+| `/resume`、`/model`、`/permission ` | 打开交互式选择器 / 参数补全 |
+| `Esc` | 关闭菜单与选择器（不会取消 turn） |
+| `Ctrl+C` | 冲刷会话并退出 |
+| `y` / `n` / `a` | 回答审批浮层 |
+
+### 配置与插件
+
+- 一切都在 `~/.dsh` 下（可用 `$DSH_HOME` 覆盖）：`settings.yaml`（模型/提供方、base URL）、`.credentials.yaml`（API key，如 `DEEPSEEK_API_KEY`）、`sessions/`（历史）、`profiles/`（各 profile 插件层）。
+- Web UI 与 TUI 读取同一批文件——切换表层不会拆分你的配置或历史。
+- 第三方插件就是普通 Cordis 插件：`dsh plugin --profile tui add <package>` 自动挂载其工具与斜杠命令。
+
+### 排障
+
+- **`dsh tui: an interactive terminal (TTY) is required`** —— TUI 需要真实终端；请在终端里运行，不要在管道或 CI 里跑。
+- **没有 API key / `MISSING_CREDENTIAL`** —— 把 key 放进 `~/.dsh/.credentials.yaml` 或环境变量（`DEEPSEEK_API_KEY=... dsh`）。
+- **`dsh -c` 开了新会话** —— 该目录没有可读会话（或最近几个日志损坏；TUI 会自动跳过）。
+- **模型显示 `deepseek-official/deepseek-official/...`** —— 旧版补全 bug 导致；升级到最新构建即可。
+
+完整功能列表与架构说明见 [TUI 包 README](packages/tui/app/README.zh.md)。
 
 ## 运行
 
