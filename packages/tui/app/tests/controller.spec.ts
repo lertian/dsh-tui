@@ -651,7 +651,11 @@ describe('session lifecycle', () => {
     expect(controller.getSnapshot().projection.rows.length).toBeGreaterThan(0)
     const epochBefore = controller.getSnapshot().viewEpoch
     await controller.submit('/clear')
-    expect(controller.getSnapshot().projection.rows).toEqual([])
+    // The clear command's own lifecycle row remains as its feedback; every
+    // transcript row from before the clear is gone.
+    const rows = controller.getSnapshot().projection.rows
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ kind: 'command', status: 'done', text: 'view cleared — the session log is untouched' })
     expect(controller.getSnapshot().viewEpoch).toBe(epochBefore + 1)
     await ctx.fiber.dispose()
   })

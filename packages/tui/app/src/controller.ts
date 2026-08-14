@@ -755,7 +755,7 @@ export class TuiController {
     this.disposers.push(commands.register({
       name: 'clear',
       description: 'clear the transcript view (the session log is untouched)',
-      handler: async () => {
+      handler: () => {
         this.projection.rows = []
         this.viewEpoch += 1
         this.touch()
