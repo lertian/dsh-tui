@@ -691,7 +691,7 @@ export class TuiController {
             ? [parts[0].slice(0, parts[0].indexOf('/')), parts[0].slice(parts[0].indexOf('/') + 1)]
             : [current?.provider, parts[0]]
           : [parts[0], parts[1]]
-        if (provider === undefined || model === undefined) {
+        if (provider === undefined || model === undefined || provider === '' || model === '') {
           return { kind: 'error', text: 'usage: /model <provider> <model>' }
         }
         await this.setModel(provider, model)

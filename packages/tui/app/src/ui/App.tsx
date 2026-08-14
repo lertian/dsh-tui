@@ -597,7 +597,7 @@ function Prompt({ disabled, commands, skills, loadArgumentItems, promptState, hi
         <Text>
           {'❯ '}
           {value === ''
-            ? <Text dimColor>{disabled ? 'waiting…' : ''}</Text>
+            ? <Text dimColor>{disabled ? 'waiting…' : 'message the agent, / for commands'}</Text>
             : lines.map((line, index) => (
               <React.Fragment key={index}>
                 {index === 0 ? '' : '\n  '}

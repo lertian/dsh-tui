@@ -356,6 +356,18 @@ describe('input routing', () => {
     expect(controller.getSnapshot().modelLabel).toBe('test-provider/test-model-2')
     await ctx.fiber.dispose()
   })
+
+  it('rejects an empty model id from a trailing-slash argument', async () => {
+    const { ctx, controller } = await bench()
+    await controller.start(FRESH)
+    await controller.submit('/model test-provider/')
+    // An empty model must not reach the selection; the invocation errors out.
+    expect(controller.getSnapshot().modelLabel).toBe('test-provider/test-model')
+    const rows = controller.getSnapshot().projection.rows.filter(row => row.kind === 'command')
+    const last = rows.at(-1)
+    expect(last?.kind === 'command' && last.ok).toBe(false)
+    await ctx.fiber.dispose()
+  })
 })
 
 describe('approvals', () => {
