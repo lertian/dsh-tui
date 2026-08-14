@@ -10,6 +10,34 @@ It uses an architecture where **everything is a plugin**, and is powered by [Cor
 
 DeepSeek Harness is currently in _developer preview_ and is iterating rapidly. **THERE WILL BE COMPATIBILITY-BREAKING CHANGES.**
 
+## Terminal UI (this fork)
+
+This fork adds an interactive **terminal UI** for DeepSeek Harness, built with [Ink](https://github.com/vadimdemedes/ink) in the spirit of Claude Code.
+
+**Positioning.** The TUI is a thin surface over the stock harness: the agent loop, tools, approvals, session persistence, settings, and credentials all come from the unmodified `dsh-base` plugin stack. It shares `~/.dsh` with the Web UI and every other profile — one configuration, one credential store, one session history, usable from both surfaces. Nothing in the core packages is forked; the TUI lives in [`packages/tui/app`](packages/tui/app/README.md) plus a bundle patch and a registered `tui` profile.
+
+**What you get.** Streaming transcripts, generic tool-call cards, an approval overlay (`y` / `n` / `a`), a fuzzy `/` command menu, interactive pickers for `/resume` and `/model`, argument completion (including `/permission`), and `dsh -c` to continue the newest session in the current directory. Third-party Cordis plugins installed with `dsh plugin --profile tui add <package>` contribute their tools and slash commands automatically.
+
+### Use it
+
+```sh
+git clone https://github.com/lertian/dsh-tui.git
+cd dsh-tui
+pnpm install
+pnpm run build        # Node 24, pnpm via corepack
+node apps/cli/lib/bin.js
+```
+
+```sh
+dsh                    # fresh session (tui is the default profile)
+dsh -c                 # continue the newest session in this directory
+dsh --resume <id>      # reopen a specific persisted session
+dsh --profile headless "run the tests"   # one-shot, non-interactive
+dsh web                # the Web UI, same ~/.dsh
+```
+
+Inside the UI: Enter submits; typing `/` opens the command menu (↑↓ select, Tab completes, Enter runs); `/resume` and `/model` open fuzzy pickers; Esc closes menus and pickers; Ctrl+C quits. See the [TUI package README](packages/tui/app/README.md) for the full feature list and architecture notes.
+
 ## Run
 
 ### Run from `npm`

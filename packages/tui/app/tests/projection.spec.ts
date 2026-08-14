@@ -121,7 +121,7 @@ describe('applyEvent', () => {
     const projection = createProjection()
     applyEvent(projection, ev('tool/call', { turn: 1, step: 1, callId: CallId('call-1'), name: 'bash', arguments: '{"command":"ls"}' }))
     let row = projection.rows[0] as ToolRow
-    expect(row).toMatchObject({ kind: 'tool', name: 'bash', argsSummary: 'ls', status: 'running' })
+    expect(row).toMatchObject({ kind: 'tool', turn: 1, name: 'bash', argsSummary: 'ls', status: 'running' })
     expect(isFinalized(row)).toBe(false)
     applyEvent(projection, ev('tool/result', {
       turn: 1,
@@ -154,6 +154,50 @@ describe('applyEvent', () => {
       message: createToolResultMessage({ callId: CallId('call-x'), content: [{ type: 'text', text: 'late' }], isError: false }),
     }))
     expect(projection.rows[0]).toMatchObject({ kind: 'tool', status: 'done', resultPreview: 'late' })
+  })
+
+  it('stamps tool rows with their turn', () => {
+    const projection = createProjection()
+    applyEvent(projection, ev('tool/call', { turn: 3, step: 1, callId: CallId('call-t'), name: 'bash', arguments: '{}' }))
+    expect(projection.rows[0]).toMatchObject({ kind: 'tool', turn: 3 })
+  })
+
+  it('keeps the full result text only when the preview truncates it', () => {
+    const projection = createProjection()
+    const long = Array.from({ length: 10 }, (_, i) => `line ${i}`).join('\n')
+    applyEvent(projection, ev('tool/call', { turn: 1, step: 1, callId: CallId('call-long'), name: 'bash', arguments: '{}' }))
+    applyEvent(projection, ev('tool/result', {
+      turn: 1,
+      step: 1,
+      message: createToolResultMessage({ callId: CallId('call-long'), content: [{ type: 'text', text: long }], isError: false }),
+    }))
+    const row = projection.rows[0] as ToolRow
+    expect(row.resultPreview).not.toBe(long)
+    expect(row.resultPreview).toContain('…')
+    expect(row.resultText).toBe(long)
+
+    const short = createProjection()
+    applyEvent(short, ev('tool/result', {
+      turn: 1,
+      step: 1,
+      message: createToolResultMessage({ callId: CallId('call-short'), content: [{ type: 'text', text: 'tiny' }], isError: false }),
+    }))
+    expect((short.rows[0] as ToolRow).resultText).toBeUndefined()
+  })
+
+  it('stamps assistant rows with their turn', () => {
+    const projection = createProjection()
+    applyEvent(projection, ev('assistant/message', { turn: 5, step: 1, message: reply('hi') }))
+    expect(projection.rows[0]).toMatchObject({ kind: 'assistant', turn: 5 })
+  })
+
+  it('separates turns with a blank notice, skipping the first turn', () => {
+    const projection = createProjection()
+    applyEvent(projection, ev('turn/start', { turn: 1 }))
+    expect(projection.rows).toHaveLength(0)
+    applyEvent(projection, ev('turn/start', { turn: 2 }))
+    expect(projection.rows).toHaveLength(1)
+    expect(projection.rows[0]).toMatchObject({ kind: 'notice', tone: 'info', text: '' })
   })
 
   it('pairs command lifecycle events and carries the result text', () => {

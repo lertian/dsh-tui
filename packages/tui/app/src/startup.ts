@@ -20,7 +20,7 @@ export const TUI_STARTUP_SERVICE = 'tuiStartup'
 
 /** What the runner row reads from {@link TUI_STARTUP_SERVICE}. */
 export interface TuiStartupValues {
-  /** The persisted session id to resume; an empty string means a fresh session. */
+  /** The persisted session id (or unique short-id prefix) to resume; an empty string means a fresh session. */
   resume: string
   /** Continue the most recent session created in the launch directory (`-c`). */
   continue: boolean
@@ -37,7 +37,7 @@ function tuiCommand(): Command {
     .name('dsh')
     .description('Open the interactive terminal UI: a persistent multi-turn agent session with streaming, approvals, and slash commands.')
     .helpOption('-h, --help', 'show this help')
-    .option('--resume <session>', 'resume a persisted session by id')
+    .option('--resume <session>', 'resume a persisted session by full id or unique short-id prefix')
     .option('-c, --continue', 'continue the most recent session in this directory')
     .allowExcessArguments(false)
     .addHelpText('after', `
@@ -45,9 +45,15 @@ Examples:
   dsh                              start a fresh interactive session
   dsh -c                           continue the most recent session here
   dsh --resume <id>                reopen a previous session and continue
+                                   (a full session id or a unique short prefix,
+                                   e.g. dsh --resume 0b59b044)
 
-Inside the UI: Enter submits, Shift+Enter or Ctrl+J inserts a newline, Esc
-cancels the running turn, Ctrl+C quits. Type / for the slash-command menu.
+Inside the UI: Enter submits, Shift+Enter or Ctrl+J inserts a newline, ↑/↓
+recalls submitted history, Shift+Tab cycles the thinking level, Esc cancels
+the running turn (the working indicator stops and the prompt clears right
+away; the agent settles in the background), Ctrl+O expands or collapses the
+last turn's tool results and thinking, Ctrl+C clears the input or cancels
+the turn — pressed twice, it quits. Type / for the slash-command menu.
 `)
 }
 

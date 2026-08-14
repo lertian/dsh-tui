@@ -105,6 +105,11 @@ export function applyEvent(projection: Projection, event: SessionEvent): void {
   const rows = projection.rows
   switch (event.type) {
     case 'turn/start': {
+      // A new turn after any prior one lands a blank separator notice, so the
+      // scrollback visually breaks turns apart. The first turn has no prior row.
+      if (projection.turn !== 0) {
+        rows.push({ kind: 'notice', key: `sep:${event.seq}`, tone: 'info', text: '' })
+      }
       projection.turn = event.data.turn
       projection.busy = true
       return
@@ -164,6 +169,7 @@ export function applyEvent(projection: Projection, event: SessionEvent): void {
       rows.push({
         kind: 'assistant',
         key: `a:${event.seq}`,
+        turn: event.data.turn,
         text,
         reasoning,
         model: `${source.provider}/${source.model}`,
@@ -179,6 +185,7 @@ export function applyEvent(projection: Projection, event: SessionEvent): void {
       rows.push({
         kind: 'tool',
         key: `t:${event.data.callId}`,
+        turn: event.data.turn,
         name: event.data.name,
         argsSummary: summarizeArguments(event.data.name, event.data.arguments),
         status: 'running',
@@ -187,20 +194,29 @@ export function applyEvent(projection: Projection, event: SessionEvent): void {
     }
     case 'tool/result': {
       const block = event.data.message.content[0]
-      const text = preview(blocksText(block.content))
+      const full = blocksText(block.content)
+      const previewText = preview(full)
       const isError = block.isError || event.data.error !== undefined
       upsertRow(
         rows,
         `t:${block.toolCallId}`,
-        (row): ChatRow => row.kind !== 'tool' ? row : { ...row, status: 'done', resultPreview: text, isError },
+        (row): ChatRow => row.kind !== 'tool' ? row : {
+          ...row,
+          status: 'done',
+          resultPreview: previewText,
+          isError,
+          ...full === previewText ? {} : { resultText: full },
+        },
         (): ToolRow => ({
           kind: 'tool',
           key: `t:${block.toolCallId}`,
+          turn: event.data.turn,
           name: block.toolCallId,
           argsSummary: '',
           status: 'done',
-          resultPreview: text,
+          resultPreview: previewText,
           isError,
+          ...full === previewText ? {} : { resultText: full },
         }),
       )
       return

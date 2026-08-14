@@ -10,6 +10,34 @@ DeepSeek Harness（`dsh`）是由 [DeepSeek AI](https://deepseek.com) 开发的�
 
 DeepSeek Harness 目前处于 _开发者预览_ 阶段，正在快速迭代。**未来将出现破坏兼容性的变更。**
 
+## 终端 UI（本 fork）
+
+本 fork 为 DeepSeek Harness 新增了交互式**终端 UI**，基于 [Ink](https://github.com/vadimdemedes/ink) 构建，交互风格对标 Claude Code。
+
+**定位。** TUI 是原生 harness 之上的一层薄表层：agent 循环、工具、审批、会话持久化、settings 与 credentials 全部来自未改动的 `dsh-base` 插件栈。它与 Web UI 及其他 profile 共享同一个 `~/.dsh`——一份配置、一份凭证、一份会话历史，两个表层通用。核心包零改动；TUI 由 [`packages/tui/app`](packages/tui/app/README.md)、一个 bundle patch 和已注册的 `tui` profile 组成。
+
+**能力。** 流式会话记录、通用工具调用卡片、审批浮层（`y` / `n` / `a`）、`/` fuzzy 命令菜单、`/resume` 与 `/model` 交互式选择器、参数补全（含 `/permission`），以及 `dsh -c` 继续当前目录最近一次会话。通过 `dsh plugin --profile tui add <package>` 安装的第三方 Cordis 插件会自动贡献其工具与斜杠命令。
+
+### 使用方式
+
+```sh
+git clone https://github.com/lertian/dsh-tui.git
+cd dsh-tui
+pnpm install
+pnpm run build        # Node 24, pnpm via corepack
+node apps/cli/lib/bin.js
+```
+
+```sh
+dsh                    # fresh session (tui is the default profile)
+dsh -c                 # continue the newest session in this directory
+dsh --resume <id>      # reopen a specific persisted session
+dsh --profile headless "run the tests"   # one-shot, non-interactive
+dsh web                # the Web UI, same ~/.dsh
+```
+
+UI 内按键：Enter 提交；输入 `/` 打开命令菜单（↑↓ 选择，Tab 补全，Enter 执行）；`/resume` 与 `/model` 打开 fuzzy 选择器；Esc 关闭菜单与选择器；Ctrl+C 退出。完整功能列表与架构说明见 [TUI 包 README](packages/tui/app/README.md)。
+
 ## 运行
 
 ### 通过 `npm` 运行

@@ -46,6 +46,9 @@
       "path": "../../session-query/session-query"
     },
     {
+      "path": "../../skill/skill"
+    },
+    {
       "path": "../../boot/cmdline"
     },
     {

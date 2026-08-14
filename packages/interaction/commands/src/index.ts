@@ -36,6 +36,26 @@ export interface CommandInvocation {
   readonly signal: AbortSignal
 }
 
+/** Invocation passed to one command's argument-completion provider. */
+export interface CommandCompleteInvocation {
+  /** Exact agent whose UI requested the completions. */
+  readonly agent: Agent
+  /** The partial argument typed so far, without the separator whitespace. */
+  readonly partialArg: string
+  /** Cancellation signal owned by the requesting UI. */
+  readonly signal: AbortSignal
+}
+
+/** One argument-completion row returned to an interactive UI adapter. */
+export interface CommandCompletionItem {
+  /** The value inserted into the command line when the row is picked. */
+  readonly value: string
+  /** Primary display label. */
+  readonly label: string
+  /** Optional secondary display text. */
+  readonly description?: string
+}
+
 /** Plugin-owned command registration. */
 export interface CommandDefinition {
   /** Lowercase command name without the leading slash. */
@@ -44,6 +64,18 @@ export interface CommandDefinition {
   readonly description: string
   /** Optional free-form input hint advertised to capable clients. */
   readonly input?: CommandInputDescriptor
+  /**
+   * Optional argument-completion provider, registered on the command itself
+   * (the Gemini `SlashCommand.completion` shape) so every command — including
+   * third-party plugin commands — can advertise completions to interactive
+   * adapters. The registry never invokes it; adapters call
+   * {@link CommandRuntime.complete}, which passes the live agent, the partial
+   * argument typed after the command name, and the UI's abort signal. It has
+   * no model or token impact of its own.
+   */
+  readonly complete?: (
+    invocation: CommandCompleteInvocation,
+  ) => readonly CommandCompletionItem[] | Promise<readonly CommandCompletionItem[]>
   /**
    * Whether `command/run` records `rawInput`. Defaults to true. A command
    * whose domain event owns the payload sets this false to avoid duplicating
@@ -161,6 +193,9 @@ function normalizeDefinition(definition: CommandDefinition): RegisteredCommand {
   if (typeof definition.handler !== 'function') {
     throw new TypeError(`command "${definition.name}" handler must be a function`)
   }
+  if (definition.complete !== undefined && typeof definition.complete !== 'function') {
+    throw new TypeError(`command "${definition.name}" complete must be a function`)
+  }
   const rawInput: unknown = definition.input
   let input: CommandInputDescriptor | undefined
   if (rawInput !== undefined) {
@@ -177,6 +212,7 @@ function normalizeDefinition(definition: CommandDefinition): RegisteredCommand {
     name: definition.name,
     description: definition.description,
     ...input === undefined ? {} : { input },
+    ...definition.complete === undefined ? {} : { complete: definition.complete },
     ...definition.recordInput === undefined ? {} : { recordInput: definition.recordInput },
     handler: definition.handler,
   })
@@ -215,6 +251,33 @@ function normalizeResult(command: string, value: unknown): CommandResult {
     return Object.freeze({ kind: 'error', text: result.text })
   }
   throw new TypeError(`command "${command}" returned unknown result kind "${String(result.kind)}"`)
+}
+
+/** Validate and detach an untrusted completion list at the registry boundary. */
+function normalizeCompletion(command: string, value: unknown): readonly CommandCompletionItem[] {
+  if (!Array.isArray(value)) {
+    throw new TypeError(`command "${command}" complete must return an array of completion rows`)
+  }
+  return Object.freeze(value.map((row, index): CommandCompletionItem => {
+    if (typeof row !== 'object' || row === null || !('value' in row) || !('label' in row)) {
+      throw new TypeError(`command "${command}" completion row ${index} must carry value and label`)
+    }
+    const item = row as { value?: unknown; label?: unknown; description?: unknown }
+    if (typeof item.value !== 'string' || item.value === '') {
+      throw new TypeError(`command "${command}" completion row ${index} value must be a non-empty string`)
+    }
+    if (typeof item.label !== 'string') {
+      throw new TypeError(`command "${command}" completion row ${index} label must be a string`)
+    }
+    if (item.description !== undefined && typeof item.description !== 'string') {
+      throw new TypeError(`command "${command}" completion row ${index} description must be a string when supplied`)
+    }
+    return Object.freeze({
+      value: item.value,
+      label: item.label,
+      ...item.description === undefined ? {} : { description: item.description },
+    })
+  }))
 }
 
 /**
@@ -272,6 +335,34 @@ export class CommandRuntime extends TypertRemoteService {
    */
   find(agent: Agent, name: string): CommandDefinition | undefined {
     return this.view(agent).get(name)?.definition
+  }
+
+  /**
+   * Resolve one command's argument completions without executing it. The
+   * provider runs in-process with no lifecycle logging and no model impact;
+   * malformed rows and provider failures surface as thrown errors for the
+   * calling adapter to contain.
+   *
+   * @param agent - exact receiving agent and scoped-layer key.
+   * @param name - command name without a slash.
+   * @param partialArg - the partial argument typed after the command name.
+   * @param signal - cancellation signal owned by the UI request.
+   * @returns detached completion rows, or `undefined` when the command is
+   *   unknown or its registration offers no completion provider.
+   */
+  async complete(
+    agent: Agent,
+    name: string,
+    partialArg: string,
+    signal: AbortSignal,
+  ): Promise<readonly CommandCompletionItem[] | undefined> {
+    const command = this.view(agent).get(name)
+    const provider = command?.definition.complete
+    if (provider === undefined) return undefined
+    if (signal.aborted) throw abortError(signal)
+    const invocation = Object.freeze({ agent, partialArg, signal })
+    const output = await withAbort(Promise.resolve(provider(invocation)), signal)
+    return normalizeCompletion(name, output)
   }
 
   /**

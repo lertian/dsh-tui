@@ -191,6 +191,88 @@ describe('CommandRuntime', () => {
     await expect(ctx.commands.execute(agent, '/missing', controller.signal)).resolves.toBeUndefined()
   })
 
+  it('resolves argument completions registered on the command', async () => {
+    const ctx = await mount()
+    const { agent } = await mintAgentScope(ctx, 'a')
+    const seen = vi.fn(() => [{ value: 'v1', label: 'One' }, { value: 'v2', label: 'Two', description: 'second' }])
+    ctx.commands.register({
+      name: 'pick',
+      description: 'Pick',
+      input: { hint: '<choice>' },
+      complete: seen,
+      handler: () => ({ kind: 'success' }),
+    })
+    const controller = new AbortController()
+
+    const rows = await ctx.commands.complete(agent, 'pick', 'v', controller.signal)
+
+    expect(rows).toEqual([{ value: 'v1', label: 'One' }, { value: 'v2', label: 'Two', description: 'second' }])
+    expect(Object.isFrozen(rows)).toBe(true)
+    expect(rows !== undefined && Object.isFrozen(rows[0])).toBe(true)
+    expect(seen).toHaveBeenCalledWith(expect.objectContaining({ agent, partialArg: 'v', signal: controller.signal }))
+    // The wire view stays handler-free: complete never enters the descriptor.
+    expect(ctx.commands.list(agent)).toEqual([{ name: 'pick', description: 'Pick', input: { hint: '<choice>' } }])
+    await expect(ctx.commands.complete(agent, 'missing', '', controller.signal)).resolves.toBeUndefined()
+  })
+
+  it('returns undefined when the command offers no completion provider', async () => {
+    const ctx = await mount()
+    const { agent } = await mintAgentScope(ctx, 'a')
+    ctx.commands.register(command('plain'))
+    await expect(ctx.commands.complete(agent, 'plain', '', new AbortController().signal)).resolves.toBeUndefined()
+  })
+
+  it('stops awaiting an aborted completion and handles an already-aborted signal', async () => {
+    const ctx = await mount()
+    const { agent } = await mintAgentScope(ctx, 'a')
+    let release!: (rows: readonly { value: string; label: string }[]) => void
+    ctx.commands.register({
+      name: 'slow',
+      description: 'Slow',
+      complete: () => new Promise((resolve) => { release = resolve }),
+      handler: () => ({ kind: 'success' }),
+    })
+    const running = new AbortController()
+    const pending = ctx.commands.complete(agent, 'slow', '', running.signal)
+    running.abort('completion cancelled')
+    await expect(pending).rejects.toThrow('completion cancelled')
+    release([{ value: 'late', label: 'Late' }])
+
+    const already = new AbortController()
+    already.abort(new Error('already gone'))
+    await expect(ctx.commands.complete(agent, 'slow', '', already.signal)).rejects.toThrow('already gone')
+  })
+
+  it.each([
+    [{ value: 'v' }],
+    [{ value: '', label: 'L' }],
+    [{ value: 'v', label: 1 }],
+    [{ value: 'v', label: 'L', description: 1 }],
+  ] as const)('rejects a malformed completion row %#', async (row) => {
+    const ctx = await mount()
+    const { agent } = await mintAgentScope(ctx, 'a')
+    ctx.commands.register({
+      name: 'broken-row',
+      description: 'Broken row',
+      complete: () => [row] as never,
+      handler: () => ({ kind: 'success' }),
+    })
+    await expect(ctx.commands.complete(agent, 'broken-row', '', new AbortController().signal)).rejects.toThrow(/completion/)
+  })
+
+  it('rejects a completion provider that does not return an array', async () => {
+    const ctx = await mount()
+    const { agent } = await mintAgentScope(ctx, 'a')
+    ctx.commands.register({
+      name: 'broken-list',
+      description: 'Broken list',
+      complete: () => ({ value: 'v', label: 'L' }) as never,
+      handler: () => ({ kind: 'success' }),
+    })
+    await expect(ctx.commands.complete(agent, 'broken-list', '', new AbortController().signal))
+      .rejects.toThrow('complete must return an array of completion rows')
+  })
+
   it('stops awaiting an aborted handler and handles an already-aborted signal', async () => {
     const ctx = await mount()
     const { agent } = await mintAgentScope(ctx, 'a')
@@ -292,6 +374,7 @@ describe('CommandRuntime', () => {
     [{ ...command('empty-description'), description: ' ' }, /description/],
     [{ ...command('empty-hint'), input: { hint: '' } }, /input hint/],
     [{ ...command('bad-handler'), handler: undefined }, /handler/],
+    [{ ...command('bad-complete'), complete: 'not a function' }, /complete must be a function/],
   ] as const)('rejects invalid definition %#', async (definition, expected) => {
     const ctx = await mount()
     expect(() => ctx.commands.register(definition as unknown as CommandDefinition)).toThrow(expected)

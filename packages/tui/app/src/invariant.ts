@@ -14,9 +14,10 @@ export const name = 'tui-app-invariant'
 export const inject = ['invariants']
 
 /**
- * No runtime invariant: the runner folds the session log into a view model
- * whose correctness is pinned by the projection and controller suites; the
- * surface holds no mutable relation beyond the Agent it drives.
+ * No runtime invariant: the runner folds the session log and the skill
+ * catalog into a view model whose correctness is pinned by the projection and
+ * controller suites; the surface holds no mutable relation beyond the Agent it
+ * drives (the skill list is a derived cache of the skill registry).
  */
 const install: InvariantInstaller = () => {}
 

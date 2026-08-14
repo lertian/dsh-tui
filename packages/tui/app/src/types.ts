@@ -19,8 +19,10 @@ export interface UserRow {
 export interface AssistantRow {
   readonly kind: 'assistant'
   readonly key: string
+  /** The turn this message belongs to. */
+  readonly turn: number
   readonly text: string
-  /** Reasoning text, when the adapter produced any; rendered dimmed and collapsible. */
+  /** Reasoning text, when the adapter produced any; rendered dimmed and truncated to a bounded preview. */
   readonly reasoning: string
   readonly model?: string
   readonly usage?: TokenUsage
@@ -30,12 +32,16 @@ export interface AssistantRow {
 export interface ToolRow {
   readonly kind: 'tool'
   readonly key: string
+  /** The turn this tool call belongs to. */
+  readonly turn: number
   readonly name: string
   /** One-line human summary of the raw JSON arguments. */
   readonly argsSummary: string
   readonly status: 'running' | 'done'
   /** Truncated text preview of the result payload. */
   readonly resultPreview?: string
+  /** Full result text, present only when it exceeds the preview bound. */
+  readonly resultText?: string
   readonly isError?: boolean
 }
 

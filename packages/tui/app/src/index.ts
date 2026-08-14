@@ -26,7 +26,7 @@ export const inject = ['agentDefaultModel', 'agents', 'sessions', 'tuiStartup']
 
 /** Plugin config: the startup values resolved from this app's provider service. */
 export interface Config {
-  /** The persisted session id to resume; an empty string starts a fresh session. */
+  /** The persisted session id (or unique short-id prefix) to resume; an empty string starts a fresh session. */
   resume: string
   /** Continue the most recent session created in the launch directory. */
   continue: boolean

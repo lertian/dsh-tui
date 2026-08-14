@@ -4,8 +4,9 @@
  * select (table options + effective current value, `custom` appended exactly
  * while derived) folded from the three knob events over the composition
  * defaults; the command child registers `/permission` whose handler switches
- * through `permission.set` (bare invocation reports, unknown names error);
- * compositions without either registry are unaffected; unmounting the
+ * through `permission.set` (bare invocation reports, unknown names error)
+ * and whose `complete` advertises the preset table with the current one
+ * marked; compositions without either registry are unaffected; unmounting the
  * service removes the key (HMR safety).
  */
 
@@ -112,6 +113,22 @@ describe('/permission command', () => {
       text: 'current preset workspace-write (available: workspace-write, danger-full-access)',
     })
     expect(session.events.filter(event => event.type === 'permission/preset')).toHaveLength(1)
+  })
+
+  it('advertises preset names as argument completions with the current one marked', async () => {
+    const { ctx, session } = await harness()
+    const { agent } = await agentFor(ctx, session)
+    const first = await ctx.commands.complete(agent, 'permission', 'da', new AbortController().signal)
+    expect(first).toEqual([
+      { value: 'workspace-write', label: 'workspace-write', description: '(current)' },
+      { value: 'danger-full-access', label: 'danger-full-access', description: '' },
+    ])
+    ctx.permissionPresets.set(session, 'danger-full-access')
+    const after = await ctx.commands.complete(agent, 'permission', '', new AbortController().signal)
+    expect(after).toEqual([
+      { value: 'workspace-write', label: 'workspace-write', description: '' },
+      { value: 'danger-full-access', label: 'danger-full-access', description: '(current)' },
+    ])
   })
 
   it('rejects an unknown preset without touching the log', async () => {

@@ -259,6 +259,16 @@ export class PermissionPresetService extends Service {
         name: 'permission',
         description: 'Switch the permission preset (sandbox mode + approval policy)',
         input: { hint: '<preset>' },
+        // The argument menu reads this provider through the command registry,
+        // so the preset list never needs a per-surface special case.
+        complete: ({ agent }) => {
+          const current = this.current(agent.session.events)
+          return this.names.map(name => ({
+            value: name,
+            label: name,
+            description: name === current ? '(current)' : '',
+          }))
+        },
         // No settlement text labels its value with this command's own name: a
         // surface that renders `name · text` (the web command row) would
         // otherwise read `permission · Permission preset: workspace-write.`
