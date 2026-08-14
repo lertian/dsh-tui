@@ -247,6 +247,12 @@ export default defineConfig({
         'packages/client/ui-settings-models/src/client/welcome-store.ts',
         'packages/extensions/*/src/**/*.ts',
         'packages/extensions/*/src/**/*.tsx',
+        // Terminal UI (Ink): the frame/paint layer needs a PTY-grade harness
+        // the unit lane doesn't cover; the pure projection is fully tested
+        // and the process surface is covered by the PTY acceptance driver.
+        // TODO(gui): cover and remove with the client test lane above.
+        'packages/tui/*/src/**/*.ts',
+        'packages/tui/*/src/**/*.tsx',
         // Typert generator: correctness is pinned by its fixture suites and
         // the byte-for-byte catalog reproduction test; per-file coverage
         // would put whole-workspace compiler analysis under v8

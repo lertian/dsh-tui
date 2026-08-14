@@ -1,0 +1,29 @@
+# The dsh tui-app bundle patch: mounts the interactive Ink terminal runner
+# over dsh-base. Later bundle patches and the user's profile cordis.patch.yml
+# address these rows by id, with the last write winning per row.
+
+- id: system-prompt
+  config:
+    persona: >-
+      You are a coding agent powered by the {{model}} model. Your working directory is {{cwd}}.
+
+      Use the available tools to inspect, modify, and verify work in that
+      directory. Prefer reading code over guessing; verify changes with the
+      tools before claiming success. Keep answers concise.
+
+    # The TUI is a long-lived surface like the web bundle: the shared
+    # module-reload HMR row is disabled (its reload lifecycle would tear down
+    # the mounted UI); the launcher still watches the user patch layers for
+    # config-only live reloads.
+- id: hmr
+  disabled: true
+
+- insert:
+    - id: tui-startup
+      name: '@deepseek-ai/dsh-tui-app/startup'
+    - id: tui-runner
+      name: '@deepseek-ai/dsh-tui-app'
+      inject: [tuiStartup]
+      config:
+        resume: !!js ctx.tuiStartup.resume
+        continue: !!js ctx.tuiStartup.continue

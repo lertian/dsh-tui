@@ -5,7 +5,11 @@
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "noEmit": true,
-    "rewriteRelativeImportExtensions": false
+    "rewriteRelativeImportExtensions": false,
+    // The TUI surface (packages/tui) renders Ink components in the host
+    // aggregate; every client .tsx stays excluded below, so this flag only
+    // ever applies to the terminal UI sources and their tests.
+    "jsx": "react-jsx"
   },
   "include": [
     "apps/web/tests/scaffold.ts",
@@ -242,6 +246,8 @@
     { "path": "./packages/bundle/base" },
     { "path": "./packages/bundle/headless" },
     { "path": "./packages/bundle/web-app" },
+    { "path": "./packages/bundle/tui-app" },
+    { "path": "./packages/tui/app" },
     { "path": "./packages/boot/app-boot" },
     { "path": "./packages/boot/cmdline" },
     { "path": "./packages/sdk/server" },

@@ -310,18 +310,22 @@ function startStartupProfile(fixture: StartupFixture, args: readonly string[]) {
 }
 
 describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', () => {
-  it('requires --profile and rejects removed commands', async () => {
-    const bare = await runBuiltBin()
+  it('boots the default tui profile bare and rejects removed commands', async () => {
+    const bare = await runBuiltBin([], { DSH_TELEMETRY_DISABLED: '1' })
     expect(bare.code).toBe(1)
     expect(bare.stdout).toBe('')
-    expect(bare.stderr).toContain('--profile <name> is required')
+    // No --profile: the default tui profile boots and its runner fails fast
+    // without a terminal.
+    expect(bare.stderr).toContain('an interactive terminal (TTY) is required')
     const help = await runBuiltBin(['--help'])
     expect(help.code).toBe(0)
     expect(help.stdout).toContain('dsh --profile web')
     expect(help.stdout).toContain('dsh plugin --profile')
     expect(help.stdout).not.toMatch(/^\s+(?:tui|meta|upgrade)\b/mu)
+    // Removed command shapes now reach the default app's own parser, which
+    // exits non-zero for unknown options and excess positionals.
     for (const removed of [['tui'], ['--config', 'x.yml'], ['-p', 'task'], ['run', 'task']]) {
-      const result = await runBuiltBin(removed)
+      const result = await runBuiltBin(removed, { DSH_TELEMETRY_DISABLED: '1' })
       expect(result.code).toBe(1)
     }
   }, 30_000)

@@ -11,7 +11,9 @@
  * and `dsh --profile web -h` prints the web app's help, not this one's.
  *
  * `web` is a hardcoded alias for `--profile web`; `plugin` manages a profile's
- * plugin dependencies by forwarding to pnpm.
+ * plugin dependencies by forwarding to pnpm. A bare `dsh` boots the default
+ * `tui` profile, so `dsh`, `dsh -c`, and `dsh --resume <id>` all open the
+ * interactive TUI without naming a profile.
  * @module @deepseek-ai/dsh/args
  */
 
@@ -60,13 +62,18 @@ interface BootOptions {
  */
 const collect = (value: string, previous: string[] = []): string[] => [...previous, value]
 
+/** The profile a bare `dsh` boots: the interactive TUI. */
+export const DEFAULT_PROFILE = 'tui'
+
 /** The launcher's own help text; each app prints its own. */
 const HELP_EXAMPLES = `
 Examples:
+  dsh                                        boot the interactive TUI (the default profile)
+  dsh -c                                     continue the most recent session in this directory
+  dsh --resume <session>                     reopen one persisted session in the TUI
   dsh --profile web                          boot the web profile (same as: dsh web)
   dsh --profile headless "run the tests"     answer one task, print the result, and exit
   dsh --profile tui --patch ./extra.yml      boot a custom profile with one extra overlay
-  dsh --profile tui --resume <session>       arguments after the launcher flags reach the app
   dsh --profile web --help                   the web app's own flags and help
   dsh plugin --profile tui add <package>     install a plugin into the tui profile
 `
@@ -128,18 +135,18 @@ export function parseDshArgs(argv: readonly string[], version: string): DshInvoc
     .passThroughOptions()
     .enablePositionalOptions()
     .argument('[args...]', 'arguments for the booted profile\'s app (see: dsh --profile <name> --help)')
-    .option('--profile <name>', 'the profile under $DSH_HOME/profiles to boot')
+    .option('--profile <name>', `the profile under $DSH_HOME/profiles to boot (default: ${DEFAULT_PROFILE})`)
     .option('--patch <path>', 'extra patch-list overlay applied after the profile layer (repeatable)', collect)
     .option('--dump-config', 'print the composed profile tree and exit')
     .option('--dump-default-config', 'print the profile tree without its user layer or --patch overlays and exit')
     .action((args: string[], options: BootOptions & { profile?: string }) => {
       // With the app owning -h, the launcher's own help is what a bare
-      // `dsh -h` (no profile to hand it to) must print.
+      // `dsh -h` (no profile to hand it to) must print. Any other bare
+      // invocation boots the default TUI profile.
       if (options.profile === undefined) {
         if (args.some(argument => argument === '-h' || argument === '--help')) program.help()
-        program.error('error: --profile <name> is required')
       }
-      const profile = options.profile
+      const profile = options.profile ?? DEFAULT_PROFILE
       if (profile === '') program.error('error: --profile needs a name')
       resolved = resolveBoot(program, profile, options, args)
     })

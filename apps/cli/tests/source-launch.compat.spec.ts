@@ -1,3 +1,6 @@
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { execa } from 'execa'
@@ -24,19 +27,25 @@ describe('dsh SOURCE launcher (node --import tsx/esm)', () => {
     expect(rootPackage.scripts?.dsh).toBe('node --import tsx/esm apps/cli/src/bin.ts')
   })
 
-  it('boots the source entry and requires a profile', async () => {
+  it('boots the source entry into the default tui profile', async () => {
+    // An isolated home: the bare invocation boots (and first-initializes) the
+    // default tui profile without touching the developer's real ~/.dsh.
+    const home = mkdtempSync(join(tmpdir(), 'dsh-source-launch-'))
     const result = await execa(process.execPath, ['--import', 'tsx/esm', dshSourceBin], {
       cwd: repoRoot,
       input: '',
       timeout: 25_000,
       killSignal: 'SIGKILL',
       reject: false,
+      env: { DSH_HOME: home, DSH_TELEMETRY_DISABLED: '1' },
     })
     if (result.timedOut) {
       throw new Error(`dsh source launch did not exit within 25s. stdout:\n${result.stdout}\nstderr:\n${result.stderr}`)
     }
+    // A bare `dsh` boots the default tui profile; without a terminal the
+    // runner itself fails fast, which still proves the source chain booted.
     expect(result.exitCode).not.toBe(0)
-    expect(result.stderr).toContain('--profile <name> is required')
+    expect(result.stderr).toContain('an interactive terminal (TTY) is required')
     expect(result.stdout).toBe('')
   }, 30_000)
 })
