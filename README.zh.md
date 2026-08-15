@@ -16,7 +16,7 @@ DeepSeek Harness 目前处于 _开发者预览_ 阶段，正在快速迭代。**
 
 ### 定位
 
-TUI 是原生 harness 之上的一层薄表层：agent 循环、工具、审批、会话持久化、settings 与 credentials 全部来自未改动的 `dsh-base` 插件栈。它与 Web UI 及其他 profile 共享同一个 `~/.dsh`——一份配置、一份凭证、一份会话历史，两个表层通用。核心包零改动；TUI 由 [`packages/tui/app`](packages/tui/app/README.zh.md)、一个 bundle patch 和已注册的 `tui` profile 组成。
+TUI 是原生 harness 之上的一层薄表层：agent 循环、工具、审批、会话持久化、settings 与 credentials 全部来自未改动的 `dsh-base` 插件栈。它与 Web UI 及其他 profile 共享同一个 `~/.dsh`——一份配置、一份凭证、一份会话历史，两个表层通用。核心包零改动；TUI 由 [`packages/tui/app`](packages/tui/app/README.md)、一个 bundle patch 和已注册的 `tui` profile 组成。
 
 ### 功能
 
@@ -84,7 +84,7 @@ alias dsh='/opt/homebrew/opt/node@24/bin/node /path/to/dsh-tui/apps/cli/lib/bin.
 - **`dsh -c` 开了新会话** —— 该目录没有可读会话（或最近几个日志损坏；TUI 会自动跳过）。
 - **模型显示 `deepseek-official/deepseek-official/...`** —— 旧版补全 bug 导致；升级到最新构建即可。
 
-完整功能列表与架构说明见 [TUI 包 README](packages/tui/app/README.zh.md)。
+完整功能列表与架构说明见 [TUI 包 README](packages/tui/app/README.md)。
 
 ## 运行
 

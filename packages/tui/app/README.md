@@ -54,7 +54,7 @@ This package is a presentation surface: beyond submitting the user's own input a
 ## Known Limitations and Deferred Work
 
 - The prompt edits at the tail only: no caret movement, selection, or kill-ring yet (↑/↓ history recall is supported).
-- Assistant text renders as plain text (no markdown syntax highlighting).
+- Assistant text renders a terminal-markdown subset: ``` code blocks (regex-highlighted: comments, strings, keywords, numbers), headings, lists, quotes, bold/italic/inline code; tables and links are not supported.
 - Commands and skills share one flat `/` menu (skills are distinguished by their description, not a group header).
 - The approval `always` choice is a UI-side per-tool memory; it is not persisted across restarts.
 - Esc does not interrupt a manual `/compact` (the command's signal is UI-lifetime); the compaction spinner keeps showing progress until the transaction settles.

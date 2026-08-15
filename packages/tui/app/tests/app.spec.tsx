@@ -6,14 +6,21 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { render } from 'ink-testing-library'
 import type { ApprovalChoice, TuiController, TuiSnapshot } from '../src/controller.ts'
-import { App, backspace, fenceParts } from '../src/ui/App.tsx'
+import { App, backspace } from '../src/ui/App.tsx'
 import type { ChatRow } from '../src/types.ts'
 import type { SelectItem } from '../src/ui/SelectList.tsx'
 
-/** Wait for Ink's effect-scheduled stdin attachment and a repaint after input. */
+/**
+ * Wait for Ink's effect-scheduled stdin attachment and a repaint after input.
+ * Ink 6 dispatches input through a 'readable' → read() pipeline whose listener
+ * attaches from a passive effect, and React 19 flushes passive effects on its
+ * own scheduler — under load (the full suite) one setImmediate is not always
+ * enough, so allow two immediates plus a small timer.
+ */
 async function flush(): Promise<void> {
   await new Promise(resolve => setImmediate(resolve))
-  await new Promise(resolve => setTimeout(resolve, 0))
+  await new Promise(resolve => setImmediate(resolve))
+  await new Promise(resolve => setTimeout(resolve, 10))
 }
 
 /** A ready snapshot with the given overrides. */
@@ -454,14 +461,6 @@ describe('assistant markdown fences', () => {
     expect(frame).not.toContain('```')
   })
 
-  it('keeps fence-free text untouched', () => {
-    expect(fenceParts('plain text')).toEqual([{ code: false, text: 'plain text' }])
-    expect(fenceParts('a\n```\nb\n```\nc')).toEqual([
-      { code: false, text: 'a' },
-      { code: true, text: 'b' },
-      { code: false, text: 'c' },
-    ])
-  })
 })
 
 describe('backspace helper', () => {
@@ -519,7 +518,7 @@ describe('prompt editing', () => {
     expect(state.submitted).toEqual(['xaby'])
   })
 
-  it('deletes before and after the caret', async () => {
+  it('deletes before with Backspace and after with the Delete key', async () => {
     const { state, controller } = rig(editingSnap())
     const { stdin, lastFrame } = render(<App controller={controller} />)
     await flush()
@@ -532,12 +531,34 @@ describe('prompt editing', () => {
     stdin.write('\u0008') // Backspace deletes the 'b' before the caret.
     await flush()
     expect(lastFrame()).toContain('a▌cd')
-    stdin.write('\u007F') // Delete removes the 'c' after the caret.
+    stdin.write('\u001B[3~') // The real Delete key removes the 'c' after the caret.
     await flush()
     expect(lastFrame()).toContain('a▌d')
     stdin.write('\r')
     await flush()
     expect(state.submitted).toEqual(['ad'])
+  })
+
+  it('treats the terminal DEL byte (0x7f, the macOS Backspace key) as delete-before', async () => {
+    // Ink classifies 0x7f as `delete`, so a plain Backspace press must still
+    // delete before the caret — otherwise typing then pressing Backspace at
+    // end of line silently does nothing (regression: "typed text can't be
+    // deleted").
+    const { state, controller } = rig(editingSnap())
+    const { stdin, lastFrame } = render(<App controller={controller} />)
+    await flush()
+    stdin.write('hello')
+    await flush()
+    expect(lastFrame()).toContain('hello▌')
+    stdin.write('\u007F') // macOS Backspace sends 0x7f.
+    await flush()
+    expect(lastFrame()).toContain('hell▌')
+    stdin.write('\u007F')
+    await flush()
+    expect(lastFrame()).toContain('hel▌')
+    stdin.write('\r')
+    await flush()
+    expect(state.submitted).toEqual(['hel'])
   })
 
   it('kills to the caret with Ctrl+U and to the end with Ctrl+K', async () => {

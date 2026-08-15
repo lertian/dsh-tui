@@ -7,13 +7,15 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { Box, Static, Text, useInput } from 'ink'
+import { Box, Static, Text, useInput, useStdin } from 'ink'
+import type { Key } from 'ink'
 import type { ApprovalChoice, PickerState, SlashMenuItem, TuiController } from '../controller.ts'
 import { fuzzyFilter } from '../fuzzy.ts'
 import { preview } from '../projection.ts'
 import { appendHistory, loadHistory } from '../history.ts'
 import { isFinalized } from '../types.ts'
 import type { AssistantRow, ChatRow, ToolRow } from '../types.ts'
+import { MarkdownText } from './Markdown.tsx'
 import { SelectList } from './SelectList.tsx'
 import type { SelectItem } from './SelectList.tsx'
 
@@ -25,17 +27,12 @@ const CTRL_C_EXIT_WINDOW_MS = 1000
 
 /** The DeepSeek whale, as terminal block art (rendered from the brand favicon). */
 const WHALE_LOGO = [
-  '           ▄▄▄▄    ▄▄',
-  '   ▄██████████▄    ███▄ ▄▄▄█▀',
-  ' ▄██████████████▄  ▀████████',
-  '██████████████████▄  ████▀▀',
-  '██    ▀▀███████▀▀███████',
-  '██       ▀▀█████  ▀████▀',
-  '██▄        ▀█████▄▄████',
-  '▀██▄         ▀████████',
-  ' ▀███▄   █▄▄  ▀█████▀',
-  '   ▀███▄▄████▄▄▄██████',
-  '      ▀▀██████▀▀',
+  '   ▄▄▄▄   ▄▄',
+  '  ▄██████▄ ███▄▄▄█▀',
+  ' ██████████▄ ▀█████',
+  '██    ▀█████▀  ████',
+  '██▄     ▀████▄▄██▀',
+  ' ▀████████████▀',
 ]
 
 /** Delete one trailing grapheme (locale-aware; safe across surrogate pairs). */
@@ -45,38 +42,24 @@ export function backspace(text: string): string {
   return graphemes.join('')
 }
 
-/** One prose or code run of an assistant message, split on ``` fences. */
-export interface FencePart {
-  /** Whether this run sits inside a ``` fence (renders as a code block). */
-  readonly code: boolean
-  readonly text: string
-}
-
-/** Split markdown on ``` fence lines; the fence lines themselves do not render. */
-export function fenceParts(text: string): FencePart[] {
-  const parts: FencePart[] = []
-  let buffer: string[] = []
-  let inCode = false
-  const flush = (): void => {
-    const block = buffer.join('\n')
-    buffer = []
-    if (block !== '') parts.push({ code: inCode, text: block })
-  }
-  for (const line of text.split('\n')) {
-    if (line.trimStart().startsWith('```')) {
-      flush()
-      inCode = !inCode
-    } else {
-      buffer.push(line)
-    }
-  }
-  flush()
-  return parts
-}
-
 /** Split one string into code points; caret positions are measured in these. */
 function codePoints(text: string): string[] {
   return Array.from(text)
+}
+
+/**
+ * Register an input handler that always runs against the latest render's
+ * closure. Ink refreshes its stdin subscription from a passive effect, and
+ * React may flush that effect only after the next keypress has already fired
+ * (fast typing, scripted PTY drives): the handler would then read a stale
+ * frame. Routing through a ref assigned during render keeps every keystroke
+ * on fresh state.
+ */
+function useLatestInput(handler: (input: string, key: Key) => void): void {
+  const ref = useRef(handler)
+  ref.current = handler
+  const stable = useRef((input: string, key: Key): void => { ref.current(input, key) })
+  useInput(stable.current)
 }
 
 /** Cycle spinner frames while `active`. */
@@ -102,9 +85,7 @@ const RowView = React.memo(function RowView({ row, isExpanded }: { row: ChatRow;
           {row.reasoning !== '' && (
             <Text dimColor italic>thought: {isExpanded ? row.reasoning : preview(row.reasoning)}</Text>
           )}
-          {fenceParts(row.text).map((part, index) => (
-            <Text key={index} dimColor={part.code}>{part.text}</Text>
-          ))}
+          <MarkdownText text={row.text} />
         </Box>
       )
     case 'tool': {
@@ -211,7 +192,7 @@ function PickerView({ picker, onSelect, onCancel }: {
   const [selected, setSelected] = useState(0)
   const matches = fuzzyFilter(picker.items, filter, item => `${item.label} ${item.value}`)
   const clamped = Math.min(selected, Math.max(0, matches.length - 1))
-  useInput((input, key) => {
+  useLatestInput((input, key) => {
     if (key.escape) {
       onCancel()
       return
@@ -284,6 +265,19 @@ function Prompt({ disabled, commands, skills, loadArgumentItems, promptState, hi
   valueRef.current = value
   const cursorRef = useRef(0)
   cursorRef.current = cursor
+  // Ink collapses the terminal's DEL byte (0x7f — what the macOS Backspace key
+  // sends) into `key.delete`, so the key flags cannot tell a Backspace press
+  // from the real Delete key. Record each raw input frame off Ink's internal
+  // input bus (Ink 6 reads stdin via 'readable', so a 'data' listener never
+  // fires); declared before the useInput registration, so the ref is current
+  // when the parsed handler runs on the same frame.
+  const { internal_eventEmitter: inputEvents } = useStdin()
+  const rawKeyRef = useRef('')
+  useEffect(() => {
+    const onInput = (data: string): void => { rawKeyRef.current = data }
+    inputEvents.on('input', onInput)
+    return () => { inputEvents.removeListener('input', onInput) }
+  }, [inputEvents])
   /** Replace the buffer and clamp the caret into the new text (code-point index). */
   const setValueAndCursor = (text: string, nextCursor?: number): void => {
     setValue(text)
@@ -446,7 +440,7 @@ function Prompt({ disabled, commands, skills, loadArgumentItems, promptState, hi
     deleteRange(start, cursorRef.current)
   }
 
-  useInput((input, key) => {
+  useLatestInput((input, key) => {
     if (disabled) return
     if (key.tab && key.shift) {
       onToggleThinking()
@@ -539,7 +533,12 @@ function Prompt({ disabled, commands, skills, loadArgumentItems, promptState, hi
       deleteWordBefore()
       return
     }
-    if (key.backspace) {
+    // Ink classifies the terminal's DEL byte (0x7f — what the macOS Backspace
+    // key actually sends) as `delete`, not `backspace`, so a plain Backspace
+    // press would delete AFTER the caret and no-op at end of line. The raw-key
+    // observer above distinguishes the two: 0x7f deletes before, only the real
+    // Delete key (ESC [3~) deletes after.
+    if (key.backspace || (key.delete && rawKeyRef.current === '\u007f')) {
       deleteBefore()
       return
     }
@@ -701,7 +700,7 @@ export function App({ controller }: AppProps): React.JSX.Element {
     const shouldExpand = [...lastTurnKeys].some(key => !expandedKeys.has(key))
     setExpandedKeys(shouldExpand ? new Set(lastTurnKeys) : new Set())
   }
-  useInput((input, key) => {
+  useLatestInput((input, key) => {
     if (key.ctrl && input === 'c') {
       const now = Date.now()
       // A second press inside the window always quits, whatever the first did.

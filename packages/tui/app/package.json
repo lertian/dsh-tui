@@ -39,8 +39,14 @@
   "dependencies": {
     "@deepseek-ai/schemastery": "workspace:^",
     "commander": "^15.0.0",
-    "ink": "^5.2.1",
-    "react": "^18.2.0"
+    "ink": "^6.8.0",
+    "react": "^19.2.0",
+    "@shikijs/langs": "^4.3.1",
+    "@shikijs/themes": "^4.3.1",
+    "mdast-util-from-markdown": "^2.0.3",
+    "mdast-util-gfm": "^3.1.0",
+    "micromark-extension-gfm": "^3.0.0",
+    "shiki": "^4.3.1"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis-plugin-loader": "workspace:^",
@@ -73,7 +79,8 @@
     "@deepseek-ai/dsh-tools": "workspace:^",
     "@deepseek-ai/dsh-user-approval": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^",
-    "@types/react": "^18.3.12",
-    "ink-testing-library": "^4.0.0"
+    "@types/react": "^19.2.0",
+    "ink-testing-library": "^4.0.0",
+    "@types/mdast": "^4.0.4"
   }
 }

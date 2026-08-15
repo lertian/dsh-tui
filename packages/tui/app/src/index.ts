@@ -43,7 +43,10 @@ export const internals: {
   isTTY: () => boolean
   stderr: { write(chunk: string): unknown }
 } = {
-  render: controller => render(createElement(App, { controller }), { exitOnCtrlC: false }),
+  // Incremental rendering repaints only the rows that changed (ink 6): the
+  // default full-region erase+rewrite at every streamed token is the screen
+  // flicker users see on slow terminals.
+  render: controller => render(createElement(App, { controller }), { exitOnCtrlC: false, incrementalRendering: true }),
   isTTY: () => process.stdout.isTTY && process.stdin.isTTY,
   stderr: process.stderr,
 }
